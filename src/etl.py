@@ -76,9 +76,15 @@ def load(raw: pd.DataFrame, clean: pd.DataFrame) -> None:
         con.executescript(DIM_TARGETS.read_text(encoding="utf-8"))  # 차원 테이블·뷰·목표 기준선
 
 
-if __name__ == "__main__":
+def build() -> tuple[int, int]:
+    """원본 CSV에서 DB 전체를 다시 만든다 (배포 환경처럼 .db가 없을 때도 사용)."""
     raw = extract()
     clean = transform(raw)
     load(raw, clean)
-    print(f"loaded raw={len(raw)} clean={len(clean)} -> {DB_PATH}")
-    print(clean["product_family"].value_counts().to_string())
+    return len(raw), len(clean)
+
+
+if __name__ == "__main__":
+    n_raw, n_clean = build()
+    print(f"loaded raw={n_raw} clean={n_clean} -> {DB_PATH}")
+    print(transform(extract())["product_family"].value_counts().to_string())

@@ -1,5 +1,6 @@
 -- 대시보드가 사용하는 분석 쿼리 모음. `-- name:` 줄이 쿼리 이름이다 (src/db.py가 로드).
--- 공통 파라미터: :start, :end (YYYY-MM-DD), :include_dup (1=중복 후보 포함, 0=제외), :growth (목표 성장률, 예 0.05)
+-- 공통 파라미터: :start, :end (YYYY-MM-DD), :include_dup (1=중복 후보 포함, 0=제외),
+--   :units (선택한 사업부를 ',A,B,' 형태로 이은 문자열), :growth (목표 성장률, 예 0.05)
 
 -- name: kpi
 SELECT COALESCE(SUM(sales_amount), 0) AS total_sales,
@@ -8,7 +9,8 @@ SELECT COALESCE(SUM(sales_amount), 0) AS total_sales,
        COALESCE(SUM(sales_amount) * 1.0 / NULLIF(COUNT(*), 0), 0) AS avg_order_value
 FROM v_sales_enriched
 WHERE sale_date BETWEEN :start AND :end
-  AND (:include_dup = 1 OR is_dup_candidate = 0);
+  AND (:include_dup = 1 OR is_dup_candidate = 0)
+  AND instr(:units, ',' || business_unit || ',') > 0;
 
 -- name: monthly_trend
 -- 월별 매출과 전월 대비 증감률 (윈도우 함수 LAG)
@@ -17,6 +19,7 @@ WITH monthly AS (
     FROM v_sales_enriched
     WHERE sale_date BETWEEN :start AND :end
       AND (:include_dup = 1 OR is_dup_candidate = 0)
+  AND instr(:units, ',' || business_unit || ',') > 0
     GROUP BY sale_month
 )
 SELECT sale_month, sales,
@@ -36,6 +39,7 @@ SELECT business_unit, product_family,
 FROM v_sales_enriched
 WHERE sale_date BETWEEN :start AND :end
   AND (:include_dup = 1 OR is_dup_candidate = 0)
+  AND instr(:units, ',' || business_unit || ',') > 0
 GROUP BY business_unit, product_family
 ORDER BY sales DESC;
 
@@ -46,6 +50,7 @@ WITH act AS (
     FROM v_sales_enriched
     WHERE sale_date BETWEEN :start AND :end
       AND (:include_dup = 1 OR is_dup_candidate = 0)
+  AND instr(:units, ',' || business_unit || ',') > 0
     GROUP BY sale_month, business_unit
 ),
 tgt AS (
@@ -54,6 +59,7 @@ tgt AS (
     FROM sales_target t
     JOIN dim_product_family d USING (product_family)
     WHERE t.baseline_months = 3           -- 직전 3개월이 모두 있는 달만 (초기 달의 불안정한 기준선 제외)
+      AND instr(:units, ',' || d.business_unit || ',') > 0
       AND d.business_unit <> 'Other'      -- 회사명 등 판별 불가 값은 목표 대상에서 제외
       AND t.target_month BETWEEN substr(:start, 1, 7) AND substr(:end, 1, 7)
     GROUP BY t.target_month, d.business_unit
@@ -72,6 +78,7 @@ SELECT product_raw, product_family, SUM(sales_amount) AS sales, SUM(quantity) AS
 FROM v_sales_enriched
 WHERE sale_date BETWEEN :start AND :end
   AND (:include_dup = 1 OR is_dup_candidate = 0)
+  AND instr(:units, ',' || business_unit || ',') > 0
 GROUP BY product_raw, product_family
 ORDER BY sales DESC
 LIMIT 10;
