@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RAW_CSV = ROOT / "data" / "raw" / "data_penjualan.csv"
 DB_PATH = ROOT / "data" / "sales.db"
 SCHEMA = ROOT / "sql" / "01_create_tables.sql"
+DIM_TARGETS = ROOT / "sql" / "02_dimensions_targets.sql"
 
 # 제품군 규칙: 위에서부터 먼저 맞는 것을 채택 (순서가 곧 우선순위)
 # 'CraftFoodpak290'처럼 두 키워드가 겹치면 소재(Craft)를 우선한다.
@@ -72,6 +73,7 @@ def load(raw: pd.DataFrame, clean: pd.DataFrame) -> None:
         raw.columns = ["tanggal", "jenis_produk", "jumlah_order", "harga", "total"]
         raw.to_sql("raw_sales", con, if_exists="append", index=False)
         clean.to_sql("sales", con, if_exists="append", index=False)
+        con.executescript(DIM_TARGETS.read_text(encoding="utf-8"))  # 차원 테이블·뷰·목표 기준선
 
 
 if __name__ == "__main__":
